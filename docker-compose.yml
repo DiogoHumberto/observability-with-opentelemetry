@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # ======================= SERVIÇOS JAVA =======================
+  order-service:
+    build: ./order-service
+    ports:
+      - "8080:8080"
+    networks:
+      - app-net
+    environment:
+      OTEL_SERVICE_NAME: order-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318   # OTLP HTTP
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none      # métricas serão coletadas via Prometheus scraping
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=dev,service.namespace=alura-case
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "8081:8080"
+    networks:
+      - app-net
+    environment:
+      OTEL_SERVICE_NAME: payment-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=dev,service.namespace=alura-case
+
+  # ======================= GRAFANA STACK =======================
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    networks:
+      - app-net
+
+  tempo:
+    image: grafana/tempo:2.6.0   # em vez de latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # query frontend
+    networks:
+      - app-net
+
+  loki:
+    image: grafana/loki:3.0.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml
+    networks:
+      - app-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    # environment:
+    #   - GF_AUTH_ANONYMOUS_ENABLED=true
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - app-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-config.yaml:/etc/otel-config.yaml
+    ports:
+      - "4318:4318"   # OTLP HTTP receiver
+    networks:
+      - app-net
+
+  promtail:
+    image: grafana/promtail:2.9.6   # em vez de latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    ports:
+      - "9080:9080"
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge

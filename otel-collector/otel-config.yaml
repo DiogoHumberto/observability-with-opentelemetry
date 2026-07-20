@@ -1,0 +1,31 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318      # recebe OTLP HTTP dos serviços Java
+
+processors:
+  batch:                            # agrupa dados antes de exportar
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317            # envia traces via gRPC para o Tempo
+    tls:
+      insecure: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp # envia logs via OTLP/HTTP para o Loki
+    tls:
+      insecure: true
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki, debug]

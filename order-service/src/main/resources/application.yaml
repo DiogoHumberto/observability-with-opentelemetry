@@ -1,0 +1,25 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: order-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0   # 100% para demo; em produção ajustar
+
+payment:
+  service:
+    url: ${PAYMENT_SERVICE_URL:http://payment-service:8080}
